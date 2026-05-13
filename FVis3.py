@@ -1697,7 +1697,7 @@ class _BinReader:
         self.f = open(self.filename, 'rb')
 
         # Read array dimensions from header
-        self.block_dim = int(np.fromfile(self.f, count=1, dtype='i4'))
+        self.block_dim = int(np.fromfile(self.f, count=1, dtype='i4')[0])
 
         # Move read indicator to next header entry
         self.f.seek(4, os.SEEK_SET)
@@ -1715,7 +1715,7 @@ class _BinReader:
         self.f.seek(4*(self.block_dim + 2) + 1, os.SEEK_SET)
 
         # Read element precision (number of bytes for each element)
-        self.dbytes = int(np.fromfile(self.f, count=1, dtype='i4'))
+        self.dbytes = int(np.fromfile(self.f, count=1, dtype='i4')[0])
 
         # Move read indicator to final header entry
         self.f.seek(4*(self.block_dim + 3) + 1, os.SEEK_SET)

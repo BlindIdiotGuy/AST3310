@@ -221,7 +221,7 @@ solver.initialise()
 solver.hydro_solver()
 solver.print_dt()
 # vis.save_data(60, solver.hydro_solver, rho=solver.rho_array, e=solver.e_array, u=solver.u_array, w=solver.w_array, T=solver.T_array, P=solver.P_array)
-# vis.animate_2D('rho', folder='FVis_output_2026-05-13_13-12')
+vis.animate_2D('rho', folder='FVis_output_2026-05-13_13-37')
 
 def sanity_check():
     """
