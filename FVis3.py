@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable, axes_size
 import matplotlib.animation
 import os, sys, time, datetime, struct
+import shutil
 
 
 ' *** For Windows users: Specify path to ffmpeg (required for saving animations) *** '
@@ -155,7 +156,8 @@ class FluidVisualiser:
 
             # Create a string of the current date and time (or use a user specified name)
             now = datetime.datetime.now()
-            self.folder = folder if folder != 'auto' else ('FVis_output_' + now.strftime('%Y-%m-%d_%H-%M'))
+            # self.folder = folder if folder != 'auto' else ('FVis_output_' + now.strftime('%Y-%m-%d_%H-%M'))
+            self.folder = folder if folder != 'auto' else ('FVis_output_true')
 
             # Use the string to create a unique folder and make it the current working directory
 
@@ -168,16 +170,19 @@ class FluidVisualiser:
                     os.mkdir(self.folder)
 
                 except OSError as e:
+                    
+                    shutil.rmtree(self.folder)
+                    os.mkdir(self.folder)
+                    # if self.newfolder_count < 5:
 
-                    if self.newfolder_count < 5:
+                    #     self.folder += '_new'
+                    #     self.newfolder_count += 1
+                    #     create_folder()
 
-                        self.folder += '_new'
-                        self.newfolder_count += 1
-                        create_folder()
+                    # else:
 
-                    else:
+                    #     raise OSError(e)
 
-                        raise OSError(e)
 
             # Keep adding _new to the name until it is unique
             create_folder()

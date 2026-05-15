@@ -8,6 +8,7 @@ from tqdm import tqdm
 import astropy.constants as c
 # visualiser
 import FVis3 as FVis
+from scipy import signal
 
 class convection2D:
 
@@ -53,6 +54,12 @@ class convection2D:
         P = ((self.P0**self.nabla / self.T0) * T)**(1/self.nabla)
         return P
 
+    def create_gaussian_perturbation(self, center_x, center_y, sigma, A):
+        X, Y = np.meshgrid(np.arange(self.Nx), np.arange(self.Ny))
+        kernel = A * np.exp(-0.5 * ((X - center_x)**2 + (Y - center_y)**2) / sigma**2)
+        return kernel
+        
+
     def initialise(self):
         """
         initialise temperature, pressure, density and internal energy
@@ -61,7 +68,7 @@ class convection2D:
         if self.perturbation == False:
             self.T_array = self.T(Y)
         elif self.perturbation == True:
-            self.T_array = self.T(Y) + np.random.normal(0, 1e3, (self.Ny, self.Nx))
+            self.T_array = self.T(Y) + self.create_gaussian_perturbation(self.Nx/2, self.Ny/4, 10, 40000)
         # self.P_array = self.P(Y, self.T_array)
         self.P_array = self.P0 * (self.T_array / self.T0)**(1 / self.nabla)
         self.e_array = self.P_array / (self.gamma - 1)
@@ -73,8 +80,8 @@ class convection2D:
         self.drhodt_array = np.zeros((self.Ny, self.Nx))
         self.drhoudt_array = -self.central_x(self.P_array)
         self.drhowdt_array = -self.central_y(self.P_array) + self.rho_array * self.g
-        print(f'dedt = {self.dedt_array}, drhodt = {self.drhodt_array}, drhoudt = {self.drhoudt_array}, drhowdt = {self.drhowdt_array}')
-        print(f'P = {self.P_array}, dx = {self.dx}, g = {self.g}')
+        # print(f'dedt = {self.dedt_array}, drhodt = {self.drhodt_array}, drhoudt = {self.drhoudt_array}, drhowdt = {self.drhowdt_array}')
+        # print(f'P = {self.P_array}, dx = {self.dx}, g = {self.g}')
         
     def rel_phi(self, var, dvar_dt):
         """
@@ -118,37 +125,35 @@ class convection2D:
         """
         p = 0.1
 
-        # rel_e = np.abs(self.rel_phi(self.e_array, self.dedt(self.u_array, self.w_array, self.e_array)))
-        # rel_rho = np.abs(self.rel_phi(self.rho_array, self.drhodt(self.u_array, self.w_array, self.rho_array)))
-        # rel_rhou = np.abs(self.rel_phi(self.rho_array * self.u_array, self.drhoudt(self.u_array, self.w_array, self.rho_array, self.P_array)))
-        # if np.max(rel_rhou) == np.nan or np.max(rel_rhou) == np.inf:
-        #     rel_rhou = -self.central_x(self.P_array)
-        # rel_rhow = np.abs(self.rel_phi(self.rho_array * self.w_array, self.drhowdt(self.u_array, self.w_array, self.rho_array, self.P_array)))
-        # if np.max(rel_rhow) == np.nan or np.max(rel_rhow) == np.inf:
-        #     rel_rhow = -self.central_y(self.P_array) - self.rho_array * self.g
         rel_x = np.abs(self.u_array / self.dx)
         rel_y = np.abs(self.w_array / self.dy)
-        # print([np.max(rel_e), np.max(rel_rho), np.max(rel_rhou), np.max(rel_rhow), np.max(rel_x), np.max(rel_y)])
         rel_e = np.abs(self.rel_phi(self.e_array, self.dedt_array))
         rel_rho = np.abs(self.rel_phi(self.rho_array, self.drhodt_array))
         rel_rhou = np.abs(self.rel_phi(self.rho_array * self.u_array, self.drhoudt_array))
         rel_rhow = np.abs(self.rel_phi(self.rho_array * self.w_array, self.drhowdt_array))
 
         self.delta = np.nanmax([np.nanmax(rel_e), np.nanmax(rel_rho), np.nanmax(rel_rhou), np.nanmax(rel_rhow), np.nanmax(rel_x), np.nanmax(rel_y)])
-        # print(f'ddddelta = {self.delta}')
-        # self.delta = np.max(self.delta[np.isfinite(self.delta)])
-        # print(f'delta = {self.delta}, dt = {self.dt}')
-        self.dt = p / self.delta
-    
-        if self.dt < 1e-3 or np.isinf(self.dt) or np.isnan(self.dt):
-            self.dt = 1e-3
+        # if self.delta > 100:
+        #     self.delta = 100
+        # self.dt = p / self.delta
+
+        # # if np.isinf(self.delta):
+        # #     print(f'delta is inf')
+
+        # if self.dt < 1e-3 or np.isinf(self.dt) or np.isnan(self.dt):
+        #     self.dt = 1e-3
+        if 0.01 <= self.delta <= 100:
+            self.dt = p / self.delta
+            return self.dt
+        else:
+            return 0.001
 
     def boundary_conditions(self):
         """
         boundary conditions for energy, density and velocity
         """
-        self.alpha_top = - self.g * self.mu * self.m_u / (self.kb * self.T_array[-1, :])
-        self.alpha_bottom = - self.g * self.mu * self.m_u / (self.kb * self.T_array[0, :])
+        self.alpha_top = -self.g * self.mu * self.m_u / (self.kb * self.T_array[-1, :])
+        self.alpha_bottom = -self.g * self.mu * self.m_u / (self.kb * self.T_array[0, :])
         e_top = (4 * self.e_array[-2, :] - self.e_array[-3, :]) / (3 + 2*self.dy * self.alpha_top) 
         e_bottom = (4 * self.e_array[1, :] - self.e_array[2, :]) / (3 - 2*self.dy * self.alpha_bottom)
         self.e_array[-1, :] = e_top
@@ -197,28 +202,24 @@ class convection2D:
         self.drhodt_array = self.drhodt(self.u_array, self.w_array, self.rho_array)
         self.drhoudt_array = self.drhoudt(self.u_array, self.w_array, self.rho_array, self.P_array)
         self.drhowdt_array = self.drhowdt(self.u_array, self.w_array, self.rho_array, self.P_array)
-        self.boundary_conditions()
-
-        
+    
         self.e_array += self.dedt_array * self.dt
         self.rho_array += self.drhodt_array * self.dt
         self.u_array += self.drhoudt_array * self.dt
         self.w_array += self.drhowdt_array * self.dt
+        self.boundary_conditions()
         self.P_array = (self.gamma - 1) * self.e_array
         self.T_array = (self.mu * self.m_u) / (self.rho_array * self.kb) * self.P_array
 
         dt = self.dt
-        # if dt < 1e-3 or np.isinf(dt) or np.isnan(dt):
-        #     dt = 1e-3
-        # print(f'Updated dt = {dt}')
         return dt
     def print_dt(self):
         print(f'dt = {self.dt}, delta = {self.delta}')
     
 
-clas = convection2D(2/5, False)
+clas = convection2D(2/5, True)
 clas.initialise()
-# clas.boundary_conditions()
+clas.boundary_conditions()
 plt.imshow(clas.T_array, origin='lower', extent=(0, clas.x_max, 0, clas.y_max), aspect='auto', cmap='inferno')
 plt.colorbar(label='Temperature (K)')
 plt.xlabel('x (m)')
@@ -227,12 +228,12 @@ plt.title('Temperature distribution')
 plt.show()
 
 vis = FVis.FluidVisualiser()
-solver = convection2D(2/5)
+solver = convection2D(2/5, perturbation=True)
 solver.initialise()
 solver.hydro_solver()
 solver.print_dt()
-# vis.save_data(60, solver.hydro_solver, rho=solver.rho_array, e=solver.e_array, u=solver.u_array, w=solver.w_array, T=solver.T_array, P=solver.P_array)
-vis.animate_2D('w', anim_fps=27, anim_time=60, folder = 'FVis_output_2026-05-13_15-38')
+vis.save_data(60, solver.hydro_solver, rho=solver.rho_array, e=solver.e_array, u=solver.u_array, w=solver.w_array, T=solver.T_array, P=solver.P_array)
+vis.animate_2D('T', anim_fps=27, anim_time=60, folder = 'FVis_output_true')
 
 def sanity_check():
     """
